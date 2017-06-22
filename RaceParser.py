@@ -20,7 +20,7 @@ class RaceParser(object):
 
     def event_handler(self, event):
         if len(self.numeric_tuples) >= self.max_tuples:
-            print('--- Parsing Build Done ---')
+            # print('--- Parsing Build Done ---')
             return self.unregister_self()
         elif event.unit_type_name in self.events_to_accept and event.control_pid == self.player.pid:
             self.gen_build_tuple(event)

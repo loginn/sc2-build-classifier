@@ -22,39 +22,49 @@ class ReplayParser:
         self.max_event_parsed = max_event_parsed
         self.dir_list = os.listdir(self.folder)
         self.clustering = Clustering()
+        self.file_handler = FileHandler()
 
     def run(self):
-        self.parse()
+        self.train()
+        self.predict()
 
-    def parse(self):
-        print('Begin replay loading...')
-        self.load_replays(self.max_replay_load, self.training_replays)
+    def train(self):
+        print('Begin replay loading for training...')
+        self.load_replays(self.max_replay_load, self.training_replays, 0)
         print('Done\n')
-
-        print('Begin replay parsing...')
+        print('Begin replay parsing for training...')
         for replay in self.training_replays:
             self.parse_replay(replay, self.training_builds)
         print('Done\n')
-        print('Number of builds parsed : ',
-              sum([len(self.training_builds["Protoss"]),
-                   len(self.training_builds["Terran"]),
-                   len(self.training_builds["Zerg"])]))
+        print('Number of builds parsed for training: ', self.number_of_builds(self.training_builds))
         self.train_cluster_builds()
-        self.predict()
 
-    def load_replays(self, max_replays, replay_array):
-        count = 0
-        for filename in self.dir_list:
-            if count >= max_replays:
-                break
+    def predict(self, max_replays=50):
+        print("Begin replay loading for prediction...")
+        self.load_replays(max_replays + 10, self.predict_replays, 10)
+        print("Done\n")
+        print("Begin replay parsing for prediction...")
+        for replay in self.predict_replays:
+            self.parse_replay(replay, self.predict_builds)
+        print("Done\n")
+        print('Number of builds parsed for prediction: ', self.number_of_builds(self.predict_builds))
+        build_dict = self.predict_cluster_builds()
+        print(build_dict)
+        self.file_handler.put_builds_in_folders(build_dict)
+
+    def number_of_builds(self, build_dict):
+        return sum([len(build_dict["Protoss"]), len(build_dict["Terran"]), len(build_dict["Zerg"])])
+
+    def load_replays(self, max_replays, replay_array, count):
+        while count < max_replays:
+            filename = self.dir_list[count]
             try:
-                print("Loading replay : ", filename)
+                # print("Loading replay : ", filename)
                 replay = SC2Factory.load_replay(self.factory, os.path.join(self.folder, filename))
                 replay_array.append(replay)
             except UnicodeDecodeError:
                 pass
-            if max_replays != -1:
-                count += 1
+            count += 1
 
     def parse_replay(self, replay, build_dict):
         for team in replay.teams:
@@ -66,12 +76,6 @@ class ReplayParser:
                     engine.run(replay)
                     self.update_builds(player, parser, replay, build_dict)
 
-    def predict(self, max_replays=50):
-        self.load_replays(max_replays, self.predict_replays)
-        for replay in self.predict_replays:
-            self.parse_replay(replay, self.predict_builds)
-        self.predict_cluster_builds()
-
     def print_builds(self):
         for build in self.training_builds["Protoss"]:
             print(build)
@@ -80,7 +84,7 @@ class ReplayParser:
         self.clustering.train(self.training_builds["Protoss"])
 
     def predict_cluster_builds(self):
-        self.clustering.predict(self.predict_builds["Protoss"])
+        return self.clustering.predict(self.predict_builds["Protoss"], self.predict_replays)
 
     def update_builds(self, player, parser, replay, build_dict):
         if len(parser.numeric_tuples) == self.max_event_parsed:
